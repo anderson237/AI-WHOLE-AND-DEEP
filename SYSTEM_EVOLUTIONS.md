@@ -39,6 +39,15 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v4 — FIX CONNECTION CLOSE SSE (10/08/2026)
+- **Bug majeur corrige** : les reponses SSE (`text/event-stream`) n'envoyaient pas
+  `Connection: close`. OpenClaw (Node fetch, HTTP/1.1 keep-alive) attendait la
+  fermeture de connexion (EOF) pour finaliser le tour -> **~38 min bloques** apres
+  la reponse modele (le pont repondait pourtant en ~3s).
+- Fix : `Connection: close` ajoute aux reponses stream (texte ET tool_calls).
+  Resultat : tour OpenClaw complet **~38 min -> ~75s** (dont ~32s de bootstrap
+  fixe du runtime embedded OpenClaw, hors pont).
+
 ### v3 — OPTIMISATION TEMPS MORTS (10/08/2026)
 - **Pool de sessions prechauffees** : opencode paie ~30s de bootstrap a la 1re requete
   d'une session. Le pont prime un pool (`BRIDGE_POOL`, defaut 4) de sessions rechauffees
@@ -119,6 +128,7 @@ openclaw agent --local --session-key agent:main:smoke -m "Reply with exactly: OK
 | opencode 1er message (session froide) | ~29.8s    | ~2.4s (pool)|
 | bridge /v1/chat/completions          | ~5.9s      | ~2.3s       |
 | stream chunk sleep                  | 15ms/chunk  | 0 (defaut)  |
+| tour agent OpenClaw complet          | ~38 min (blocage EOF SSE) | ~75s (fix v4) |
 
 Note : l'agent runtime embedded d'OpenClaw ajoute son propre overhead fixe
 (plugins, bootstrap) hors du controle du pont.
