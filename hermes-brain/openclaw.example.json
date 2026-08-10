@@ -24,5 +24,14 @@
         "brain/deepseek-v4-flash-free": {}
       }
     }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "token": "openclaw-local-trio"
+    }
   }
 }

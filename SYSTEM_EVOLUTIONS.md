@@ -39,6 +39,15 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v5 — GATEWAY OPENCLAW CHAUDE (10/08/2026)
+- **Bootstrap reduit** : demarrage de la gateway OpenClaw en arriere-plan
+  (`openclaw gateway run`, mode local, port 18789, auth par token) au lieu d'un
+  process embedded `--local` a chaque appel.
+- La gateway prechauffe les plugins (~1s) et garde le runtime d'agent vivant.
+  Resultat : tour agent **~75s (embedded) -> ~42s (gateway)**.
+- Le fetch modele via le pont ne prend que ~2.7-8.7s ; le reste est l'assemblage
+  du system prompt OpenClaw (31k chars dont ~29.8k de schemas d'outils) + contexte.
+
 ### v4 — FIX CONNECTION CLOSE SSE (10/08/2026)
 - **Bug majeur corrige** : les reponses SSE (`text/event-stream`) n'envoyaient pas
   `Connection: close`. OpenClaw (Node fetch, HTTP/1.1 keep-alive) attendait la
@@ -129,6 +138,10 @@ openclaw agent --local --session-key agent:main:smoke -m "Reply with exactly: OK
 | bridge /v1/chat/completions          | ~5.9s      | ~2.3s       |
 | stream chunk sleep                  | 15ms/chunk  | 0 (defaut)  |
 | tour agent OpenClaw complet          | ~38 min (blocage EOF SSE) | ~75s (fix v4) |
+| tour agent via gateway chaude        | -                          | ~42s (v5)     |
 
-Note : l'agent runtime embedded d'OpenClaw ajoute son propre overhead fixe
-(plugins, bootstrap) hors du controle du pont.
+Note : le fetch modele via le pont est ~3s. Le reste (~35s) est l'assemblage du
+system prompt OpenClaw (31k chars, dont ~29.8k de schemas d'outils) + gestion de
+contexte. Reduire les outils/skills charges reduirait encore ce temps.
+Le runtime embedded d'OpenClaw ajoute aussi son propre overhead fixe (plugins,
+bootstrap) hors du controle du pont.
