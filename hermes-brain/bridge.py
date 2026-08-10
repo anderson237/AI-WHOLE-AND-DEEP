@@ -232,6 +232,38 @@ def parse_model_reply(text, allowed_names):
     return ("text", None, None)
 
 
+def extract_tool_calls(text, allowed_names):
+    calls = []
+    decoder = json.JSONDecoder()
+    s = (text or "").strip()
+    i = 0
+    while i < len(s):
+        j = s.find("{", i)
+        if j < 0:
+            break
+        try:
+            obj, consumed = decoder.raw_decode(s[j:])
+        except Exception:
+            i = j + 1
+            continue
+        if isinstance(obj, dict) and isinstance(obj.get("name"), str):
+            name = obj["name"]
+            if allowed_names is not None and name not in allowed_names:
+                i = j + consumed
+                continue
+            args = obj.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+            calls.append({"name": name, "arguments": args})
+        i = j + consumed
+    return calls
+
+
 def run_turn(messages, tools):
     allowed = set()
     for t in tools or []:
@@ -271,14 +303,22 @@ def run_turn(messages, tools):
                   {"parts": parts, "model": DEFAULT_MODEL, "tools": ALL_TOOLS_OFF}, timeout=2400)
 
     texts = []
+    reasonings = []
     for p in res.get("parts", []):
-        if p.get("type") in ("text", "reasoning"):
-            t = p.get("text")
-            if t:
-                texts.append(t)
-    raw = "\n".join(texts).strip()
+        t = p.get("text")
+        if p.get("type") == "text" and t:
+            texts.append(t)
+        elif p.get("type") == "reasoning" and t:
+            reasonings.append(t)
+    if texts:
+        raw = "\n".join(texts).strip()
+    elif reasonings:
+        raw = "\n".join(reasonings).strip()
+    else:
+        raw = ""
 
-    kind, name, args = parse_model_reply(raw, allowed)
+    calls = extract_tool_calls(raw, allowed)
+    kind = "tool" if calls else "text"
     reason = "stop"
     usage = {}
     for p in res.get("parts", []):
@@ -290,7 +330,7 @@ def run_turn(messages, tools):
             break
     if not usage:
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    return kind, name, args, raw, usage, reason
+    return kind, calls, raw, usage, reason
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -348,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": {"message": "messages required", "type": "invalid_request_error"}}, 400)
             return
         try:
-            kind, name, args, raw, usage, reason = run_turn(messages, tools)
+            kind, calls, raw, usage, reason = run_turn(messages, tools)
         except urllib.error.HTTPError as e:
             detail = ""
             try:
@@ -366,14 +406,17 @@ class Handler(BaseHTTPRequestHandler):
         chunk_delay = STREAM_CHUNK_MS / 1000.0
 
         if kind == "tool":
-            call_id = "call_" + uuid.uuid4().hex[:12]
-            fn = {"name": name, "arguments": json.dumps(args, ensure_ascii=False)}
+            tcs = []
+            for i, c in enumerate(calls):
+                tcs.append({"id": "call_" + uuid.uuid4().hex[:12],
+                            "type": "function",
+                            "function": {"name": c["name"], "arguments": json.dumps(c["arguments"], ensure_ascii=False)}})
             if not stream:
                 resp = {
                     **base, "object": "chat.completion",
                     "choices": [{"index": 0,
                                  "message": {"role": "assistant", "content": None,
-                                             "tool_calls": [{"id": call_id, "type": "function", "function": fn}]},
+                                             "tool_calls": tcs},
                                  "finish_reason": "tool_calls"}],
                     "usage": usage,
                 }
@@ -385,20 +428,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self.end_headers()
                 try:
-                    c0 = {**base, "object": "chat.completion.chunk",
-                          "choices": [{"index": 0,
-                                       "delta": {"role": "assistant", "content": None,
-                                                 "tool_calls": [{"index": 0, "id": call_id, "type": "function", "function": {"name": name, "arguments": ""}}]},
-                                       "finish_reason": None}]}
-                    self.wfile.write(f"data: {json.dumps(c0)}\n\n".encode("utf-8"))
-                    c1 = {**base, "object": "chat.completion.chunk",
-                          "choices": [{"index": 0,
-                                       "delta": {"tool_calls": [{"index": 0, "function": {"arguments": fn["arguments"]}}]},
-                                       "finish_reason": None}]}
-                    self.wfile.write(f"data: {json.dumps(c1)}\n\n".encode("utf-8"))
-                    c2 = {**base, "object": "chat.completion.chunk",
-                          "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
-                    self.wfile.write(f"data: {json.dumps(c2)}\n\n".encode("utf-8"))
+                    for i, c in enumerate(calls):
+                        chunk = {**base, "object": "chat.completion.chunk",
+                                 "choices": [{"index": 0,
+                                              "delta": {"role": "assistant", "content": None,
+                                                        "tool_calls": [{"index": i, "id": tcs[i]["id"], "type": "function",
+                                                                        "function": {"name": c["name"], "arguments": ""}}]},
+                                              "finish_reason": None}]}
+                        self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                        args_chunk = {**base, "object": "chat.completion.chunk",
+                                      "choices": [{"index": 0,
+                                                   "delta": {"tool_calls": [{"index": i, "function": {"arguments": tcs[i]["function"]["arguments"]}}]},
+                                                   "finish_reason": None}]}
+                        self.wfile.write(f"data: {json.dumps(args_chunk)}\n\n".encode("utf-8"))
+                    last = {**base, "object": "chat.completion.chunk",
+                            "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                    self.wfile.write(f"data: {json.dumps(last)}\n\n".encode("utf-8"))
                     self.wfile.write(b"data: [DONE]\n\n")
                     self.wfile.flush()
                 except Exception:

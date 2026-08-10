@@ -39,6 +39,31 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v7 — CANAL TELEGRAM + OUTILS VIDEOS (11/08/2026)
+- **Canal Telegram active** : bot `@WholeAndDeepBot` (token via @BotFather, stocke en
+  variable d'environnement utilisateur `TELEGRAM_BOT_TOKEN`, jamais en clair dans la
+  config). Config `channels.telegram` : `enabled`, `botToken` (env), `dmPolicy`,
+  `groups`. Le canal ne se connecte PAS via `openclaw channels login` : polling HTTP.
+- **yt-dlp installe** (vehicule la transcription vidéo). Executable deja dans le
+  PATH : `C:\Python314\Scripts\` refuse l'ecriture sans admin -> on utilise le venv
+  Hermes (`AppData\Local\hermes\hermes-agent\venv\Scripts`) deja dans le PATH session
+  et le Scripts dir user `AppData\Roaming\Python\Python314\Scripts` ajoute au PATH.
+- Verification chaine complete : pont renvoie `tool_calls` -> OpenClaw execute bash
+  -> resultat re-injecte -> reponse finale. OK.
+
+### v6 — FIX REPONSES PROPRES + TOOL_CALLS MULTIPLES (11/08/2026)
+- **Bug majeur** : les reponses Telegram contenaient tout le raisonnement du modele
+  ("The user sent Salut... I should respond...") avant la vraie reponse. Cause :
+  `run_turn` concatenait les parts `text` ET `reasoning` d'opencode.
+- Fix : ne renvoyer que le `text` (fallback `reasoning` si pas de texte).
+- **Bug 2** : `parse_model_reply` echouait sur PLUSIEURS `tool_calls` JSON paralleles
+  (il prenait du 1er `{` au dernier `}` -> JSON invalide -> retombe en texte brut,
+  envoyant tout le raisonnement + JSON sur le canal).
+- Fix : `extract_tool_calls()` avec `json.JSONDecoder().raw_decode` itere sur tous les
+  objets JSON ; le pont emet maintenant des `tool_calls` multiples en streaming SSE
+  standard (un chunk par appel avec `index`). OpenClaw execute chaque appel.
+- Verifie : streaming texte propre + streaming multi tool_calls OK.
+
 ### v5 — GATEWAY OPENCLAW CHAUDE (10/08/2026)
 - **Bootstrap reduit** : demarrage de la gateway OpenClaw en arriere-plan
   (`openclaw gateway run`, mode local, port 18789, auth par token) au lieu d'un
@@ -139,9 +164,30 @@ openclaw agent --local --session-key agent:main:smoke -m "Reply with exactly: OK
 | stream chunk sleep                  | 15ms/chunk  | 0 (defaut)  |
 | tour agent OpenClaw complet          | ~38 min (blocage EOF SSE) | ~75s (fix v4) |
 | tour agent via gateway chaude        | -                          | ~42s (v5)     |
+| reponse Telegram propre (sans raisonnement) | -                 | v6          |
+| tool_calls paralleles executes      | -                          | v6 (multi)   |
+| canal Telegram actif (bot @WholeAndDeepBot) | -               | v7          |
 
 Note : le fetch modele via le pont est ~3s. Le reste (~35s) est l'assemblage du
 system prompt OpenClaw (31k chars, dont ~29.8k de schemas d'outils) + gestion de
 contexte. Reduire les outils/skills charges reduirait encore ce temps.
 Le runtime embedded d'OpenClaw ajoute aussi son propre overhead fixe (plugins,
 bootstrap) hors du controle du pont.
+
+---
+
+## NOTES DE SESSION — TELEGRAM (11/08/2026)
+
+- Demarrage : config `channels.telegram` sans token en clair -> la gateway refuse de
+  demarrer (`SecretRefResolutionError: TELEGRAM_BOT_TOKEN missing`). Resolution :
+  variable d'environnement persistante scope User, puis relance du gateway avec
+  `$env:TELEGRAM_BOT_TOKEN` repasse dans la meme session shell.
+- La gateway peut relancer un `config restart` automatique a la detection d'un
+  changement de config (`config change detected; evaluating reload`) ; si un secret
+  env manque dans cette sous-session, ce restart echoue. Toujours demarrer la gateway
+  avec la variable d'env dans le scope courant.
+- `openclaw channels status` : « Telegram default: enabled, configured, running,
+  connected, mode:polling ».
+- Compaction : `agents.defaults.compaction` mis a jour pour les longues sessions
+  (`mode: safeguard`, `reserveTokensFloor: 24000`, `keepRecentTokens: 50000`,
+  `maxHistoryShare: 0.7`, `recentTurnsPreserve: 3`).

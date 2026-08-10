@@ -22,6 +22,30 @@
       "model": "brain/deepseek-v4-flash-free",
       "models": {
         "brain/deepseek-v4-flash-free": {}
+      },
+      "compaction": {
+        "mode": "safeguard",
+        "reserveTokensFloor": 24000,
+        "keepRecentTokens": 50000,
+        "maxHistoryShare": 0.7,
+        "recentTurnsPreserve": 3,
+        "timeoutSeconds": 180
+      }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": {
+        "source": "env",
+        "provider": "default",
+        "id": "TELEGRAM_BOT_TOKEN"
+      },
+      "dmPolicy": "allowlist",
+      "allowFrom": ["*"],
+      "groupPolicy": "allowlist",
+      "groups": {
+        "*": { "requireMention": true }
       }
     }
   },
