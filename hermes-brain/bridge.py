@@ -264,6 +264,51 @@ def extract_tool_calls(text, allowed_names):
     return calls
 
 
+def _coerce_param(value):
+    value = value.strip()
+    low = value.lower()
+    if low in ("true", "false", "null"):
+        try:
+            return json.loads(low)
+        except Exception:
+            return value
+    try:
+        return json.loads(value)
+    except Exception:
+        return value
+
+
+def extract_xml_tool_calls(text, allowed_names):
+    """Parse les tool_calls au format XML style Anthropic ::
+    <...tool_calls><...invoke name="exec">
+      <...parameter name="command" string="true">yt-dlp --version</...parameter>
+    </...invoke></...tool_calls>
+    Le prefixe entre '<' et le nom de balise (garbage/corruption) est ignore.
+    """
+    calls = []
+    s = text or ""
+    invoke_re = re.compile(r"<[^>]*?invoke[^>]*?\bname\s*=\s*[\"']([^\"']+)[\"'][^>]*>", re.I)
+    param_re = re.compile(r"<[^>]*?parameter[^>]*?\bname\s*=\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</[^>]*?parameter[^>]*>", re.I | re.S)
+    for m in invoke_re.finditer(s):
+        name = m.group(1)
+        if allowed_names is not None and name not in allowed_names:
+            continue
+        tail = s[m.end():]
+        close = re.search(r"</[^>]*?invoke[^>]*>", tail, re.I)
+        inner = tail[:close.start()] if close else tail
+        args = {}
+        for pm in param_re.finditer(inner):
+            args[pm.group(1)] = _coerce_param(pm.group(2))
+        calls.append({"name": name, "arguments": args})
+    return calls
+
+
+def strip_xml_blocks(text):
+    """Retire les blocs XML de tool_calls d'un texte pour une reponse propre."""
+    return re.sub(r"<[^>]*?(tool_calls|invoke|parameter|function_calls)[^>]*>(.*?)</[^>]*?(tool_calls|invoke|parameter|function_calls)[^>]*>",
+                  "", text, flags=re.I | re.S).strip()
+
+
 def run_turn(messages, tools):
     allowed = set()
     for t in tools or []:
@@ -318,6 +363,8 @@ def run_turn(messages, tools):
         raw = ""
 
     calls = extract_tool_calls(raw, allowed)
+    if not calls:
+        calls = extract_xml_tool_calls(raw, allowed)
     kind = "tool" if calls else "text"
     reason = "stop"
     usage = {}
@@ -449,7 +496,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
         else:
-            text = raw or "[sans reponse]"
+            text = strip_xml_blocks(raw) or "[sans reponse]"
             if not stream:
                 resp = {**base, "object": "chat.completion",
                         "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": reason}],
