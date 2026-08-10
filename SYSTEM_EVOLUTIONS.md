@@ -39,6 +39,25 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v8 — FIX TOOL_CALLS FORMAT XML (11/08/2026)
+- **Bug** : sur Telegram, le modele emettait parfois ses tool_calls au format **XML
+  style Anthropic** (`<invoke name="exec">`) au lieu de JSON, avec un prefixe corrompu
+  (`ï½œï½œDSMLï½œï½œ`) devant chaque nom de balise. `extract_tool_calls` ne parsaient
+  que le JSON -> le pont retombait en texte et le XML brut partait sur Telegram
+  (blocage de la transcription video : le bot re-emettait `yt-dlp --version` en boucle).
+- Fix dans `bridge.py` :
+  - `extract_xml_tool_calls()` : parse les blocs `<...invoke name="X">` +
+    `<...parameter name="y">val</...parameter>` en etant tolerant au garbage entre
+    `<` et le nom de balise (regex sans `\b` : le prefixe corrompu contient des
+    caracteres Unicode word-compatible qui cassaient la frontiere de mot).
+    Coercion des types via `_coerce_param()` (bool/int/null/string).
+  - `run_turn` : fallback XML si aucun tool_call JSON detecte.
+  - `strip_xml_blocks()` : retire les blocs XML des reponses texte pour un affichage propre.
+- Verification : parsing OK sur le contenu reel du transcript (exec + yieldMs 15000),
+  bridge relance (PID 42080), `/health` OK, test bout en bout `tool_calls -> exec` OK.
+- Test yt-dlp sur la video `Nb6RDOxIasQ` (Chariow...Produits Digitaux) : sous-titres
+  ASR francais dispo (json3), extraction possible.
+
 ### v7 — CANAL TELEGRAM + OUTILS VIDEOS (11/08/2026)
 - **Canal Telegram active** : bot `@WholeAndDeepBot` (token via @BotFather, stocke en
   variable d'environnement utilisateur `TELEGRAM_BOT_TOKEN`, jamais en clair dans la
