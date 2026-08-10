@@ -1,0 +1,24 @@
+# Config Hermes (exemple) — branchee sur le pont local opencode
+# Chemin reel: C:\Users\<USER>\AppData\Local\hermes\config.yaml
+# Ceci est un extrait minimal : seuls les blocs relies au pont sont necessaires.
+model:
+  default: deepseek-v4-flash-free
+  provider: custom
+  base_url: http://127.0.0.1:5050/v1
+  context_length: 65536
+
+toolsets:
+  - hermes-cli
+
+agent:
+  max_turns: 60
+  tool_use_enforcement: auto
+
+display:
+  streaming: true
+
+custom_providers:
+  - name: Hermes Brain (opencode bridge)
+    base_url: http://127.0.0.1:5050/v1
+    model: deepseek-v4-flash-free
+    api_mode: chat_completions

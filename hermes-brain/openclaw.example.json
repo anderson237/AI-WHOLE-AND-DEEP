@@ -1,0 +1,28 @@
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "brain": {
+        "baseUrl": "http://127.0.0.1:5050/v1",
+        "api": "openai-completions",
+        "apiKey": "sk-local",
+        "models": [
+          {
+            "id": "deepseek-v4-flash-free",
+            "name": "deepseek-v4-flash-free",
+            "contextWindow": 65536,
+            "maxTokens": 16384
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "brain/deepseek-v4-flash-free",
+      "models": {
+        "brain/deepseek-v4-flash-free": {}
+      }
+    }
+  }
+}

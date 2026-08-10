@@ -1,0 +1,22 @@
+# AI-WHOLE-AND-DEEP — Requirements & dependances
+
+## Dependances runtime
+- Python >= 3.10 (developpe/teste avec Python 3.14) — bibliotheque standard uniquement pour le pont.
+- Node.js >= 20 (opencode serve, OpenClaw).
+- opencode (CLI) installe globalement :
+  `npm install -g opencode-ai`
+- OpenClaw (CLI) :
+  `npm install -g openclaw`
+- Hermes Agent (binaire Python fourni par Hermes, `%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts\hermes.exe`).
+
+## Model
+- `deepseek-v4-flash-free`, provider `opencode`, servi par opencode serve (port 4096).
+- Aucune inference locale requise.
+
+## Ports
+- 4096 : opencode serve (hote d'agent, outils desactives).
+- 5050 : pont OpenAI-compatible (`bridge.py`) — point d'entree unique des 3 agents.
+
+## Pip (requirements.txt du pont)
+Aucun paquet pip externe necessaire (module standard uniquement). Ce fichier existe
+pour la compatibilite : le pont fonctionne avec une installation Python nu.

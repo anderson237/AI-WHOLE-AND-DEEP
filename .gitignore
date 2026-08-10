@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.DS_Store
+openclaw.schema.json
+*.log
