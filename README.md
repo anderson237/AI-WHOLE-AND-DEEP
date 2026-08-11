@@ -21,6 +21,10 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud)
 - `hermes-brain/config.hermes.example.yaml` — config Hermes branchee au pont.
 - `hermes-brain/openclaw.example.json` — config OpenClaw (provider `brain` -> :5050,
   gateway local chaude sur 18789, canal Telegram via env `TELEGRAM_BOT_TOKEN`).
+- `hermes-brain/opencode.example.json` — config opencode globale : `skills.paths`
+  vers le dossier skills Hermes (ClawHub) + MCP hermes/openclaw (chemins `<USER>`).
+- `hermes-brain/skills/tri-union-orchestrator/SKILL.md` — skill orchestrateur opencode
+  (surface de commande tri-union : Skills Hub, CLI OpenClaw, regle de latence).
 - `hermes-brain/requirements.txt` — dependances (module standard uniquement).
 - `SYSTEM_EVOLUTIONS.md` — journal des evolutions + exigences fonctionnelles (a mettre a jour
   a chaque changement fonctionnel, puis push).

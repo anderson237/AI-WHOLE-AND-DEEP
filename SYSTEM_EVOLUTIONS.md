@@ -39,6 +39,41 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v11 — SYMBIOSE ULTIME : OPENCODE = ORCHESTRATEUR + SKILLS CLAWHUB (11/08/2026)
+- **Objectif (Patrick)** : utiliser TOUS les outils du Claw Hub + toutes les capacites
+  creatives d'outils de Hermes Agent, pilotes depuis opencode, sans latence > 5s.
+- **Architecture retenue (opencode = orchestrateur)** : opencode garde ses outils
+  natifs (instantanés, ~0-200ms) et pilote Hermes/OpenClaw via CLI + MCP, SANS
+  attendre leurs tours d'agent (40s+). Le modele cloud (`deepseek-v4-flash-free`)
+  ne sert QUE le raisonnement, jamais l'execution.
+- **Diagnostic latence** : `health` 310ms mais `chat via bridge` = 15-28s,
+  `opencode serve` direct = 12-13s -> le goulot est le modele cloud, pas le pool
+  (les sessions chaudes ne reduisent pas la latence du provider).
+- **Fix 1 — skills Hermes branches sur opencode** : `skills.paths` dans
+  `~\.config\opencode\opencode.json` pointe vers `AppData\Local\hermes\skills`.
+  Tout skill installe via `hermes skills install` (ClawHub, lobehub, github,
+  skills-sh...) devient utilisable par opencode et execute avec ses outils natifs.
+  Verification : `opencode debug skill` -> 75 skills charges (nouvelle shell).
+- **Fix 2 — skill orchestrateur** : cree `tri-union-orchestrator` (skill opencode)
+  documentant la surface de commande tri-union : Skills Hub (`hermes skills
+  search/inspect/install/publish`), CLI OpenClaw (gateway, Telegram, ACP), regle
+  de latence. Copie de reference dans le repo : `hermes-brain/skills/`.
+- **Test ClawHub bout en bout OK** : `hermes skills search "youtube transcript"
+  --source clawhub` -> `hermes skills install clawhub/youtube-transcript-skill`
+  -> scan securite SAFE -> installe dans `hermes\skills\youtube-transcript-skill\`
+  -> detecte par `opencode debug skill`. Detail : le prefixe `clawhub/` est
+  OBLIGATOIRE (le slug seul est ambigu entre sources).
+- **Bug corrige** : le SKILL.md installe avait `name: youtube-transcript` alors
+  que le dossier est `youtube-transcript-skill` -> opencode exige `name` == nom
+  du dossier, sinon il ignore le skill. Frontmatter aligne apres installation.
+  A noter : si `hermes skills update` reecrase le SKILL.md, le `name` peut
+  redevenir incoherent -> re-appliquer le fix manuellement.
+- **Nouveau fichier repo** : `hermes-brain/opencode.example.json` (config opencode
+  globale avec `skills.paths` + MCP hermes/openclaw, chemins `<USER>` genericises,
+  aucun secret) + `hermes-brain/skills/tri-union-orchestrator/SKILL.md` (reference).
+- Reste a faire : les skills installes s'activent au prochain redemarrage opencode
+  (config chargee au demarrage).
+
 ### v8 — FIX TOOL_CALLS FORMAT XML (11/08/2026)
 - **Bug** : sur Telegram, le modele emettait parfois ses tool_calls au format **XML
   style Anthropic** (`<invoke name="exec">`) au lieu de JSON, avec un prefixe corrompu

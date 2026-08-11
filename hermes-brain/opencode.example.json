@@ -1,0 +1,74 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "brain/deepseek-v4-flash-free",
+  "provider": {
+    "brain": {
+      "name": "Brain (trio local)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:5050/v1"
+      },
+      "models": {
+        "deepseek-v4-flash-free": {
+          "name": "deepseek-v4-flash-free"
+        }
+      }
+    },
+    "ollama": {
+      "models": {
+        "genox-uncensored:latest": {
+          "name": "genox-uncensored:latest"
+        },
+        "hermes3:latest": {
+          "name": "hermes3:latest"
+        },
+        "llama3.1:8b": {
+          "name": "llama3.1:8b"
+        },
+        "mannix/llama3.1-8b-abliterated:latest": {
+          "name": "mannix/llama3.1-8b-abliterated:latest"
+        },
+        "qwen2.5-coder:1.5b": {
+          "_launch": true,
+          "name": "qwen2.5-coder:1.5b"
+        },
+        "qwen2.5-coder:7b": {
+          "name": "qwen2.5-coder:7b"
+        }
+      },
+      "name": "Ollama (local)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      }
+    }
+  },
+  "skills": {
+    "paths": [
+      "C:\\Users\\<USER>\\AppData\\Local\\hermes\\skills"
+    ]
+  },
+  "mcp": {
+    "openclaw": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\<USER>\\AppData\\Roaming\\npm\\openclaw.cmd",
+        "mcp",
+        "serve"
+      ],
+      "enabled": true,
+      "timeout": 120000
+    },
+    "hermes": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\<USER>\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "C:\\Users\\<USER>\\AppData\\Local\\hermes\\hermes-agent\\hermes_cli\\main.py",
+        "mcp",
+        "serve",
+        "--accept-hooks"
+      ],
+      "enabled": true
+    }
+  }
+}
