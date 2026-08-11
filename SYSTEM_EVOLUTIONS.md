@@ -122,6 +122,15 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 - **Workaround immediat** : recoller le texte du message concerne dans la reponse.
   La session ACP liee garde l'historique complet (43k tokens) mais le bot ne sait
   pas auquel de ses messages le reply se refere.
+- **Contournement automatise (v10)** : patch de `resolveAcpPromptText` dans
+  `dist\dispatch-acp-D_evZ_go.js` -> quand `ReplyToBody`/`ReplyToQuoteText` est
+  present, le prompt envoye a la session ACP liee est prefixe avec :
+  `[En reponse au message (de <sender>)]\n<contenu cite>\n\n[Votre nouveau message]\n<texte>`.
+  Script de reapplication apres mise a jour npm :
+  `python hermes-brain\reapply_acp_reply_patch.py` (sauvegarde `.bak-v10`,
+  idempotent). Backup original : `dispatch-acp-D_evZ_go.js.bak-v10`.
+  Apres patch : redemarrer la gateway OpenClaw (recette v9). Gateway relancee
+  (PID 37132), `/health` OK.
 - **Erreur "Upstream request failed: [server_error] Upstream response was not valid
   JSON"** : transitoire, provider deepseek a renvoye une reponse non-JSON.
   Verifie : bridge :5050 `/health` OK, opencode :4096 cree session + repond,
