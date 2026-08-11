@@ -58,6 +58,47 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 - Test yt-dlp sur la video `Nb6RDOxIasQ` (Chariow...Produits Digitaux) : sous-titres
   ASR francais dispo (json3), extraction possible.
 
+### v9 — TRIADE COMPLETE : VRAI HERMES AGENT + ACP OPENCODE + MCP (11/08/2026)
+- **Decouverte** : le vrai **Hermes Agent v0.17.0** (Nous Research) etait deja installe
+  localement (`AppData\Local\hermes\hermes-agent`, venv python 3.11) mais JAMAIS lance.
+  Configure pour consommer le bridge : `base_url: http://127.0.0.1:5050/v1` (provider
+  custom). `hermes doctor` sain (3 warnings mineurs). `state.db` : 14 sessions existantes.
+- **Architecture validee (Patrick)** : **opencode = cerveau/chef** (outils natifs via ACP),
+  **OpenClaw = canaux/plugins** via ACP + MCP, **Hermes = atelier d'outils/skills** via MCP.
+  Les trois partagent `deepseek-v4-flash-free` via le bridge :5050.
+- **Test chat Hermes via bridge** : `hermes chat -q "Hermes est operationnel" -Q` ->
+  reponse OK (session `20260811_011738_58b481`).
+- **Bot Telegram dedie Hermes** : `@whole_and_deep_hermes_bot` (token cree via @BotFather,
+  enregistre dans `AppData\Local\hermes\.env` via `save_env_value` de Hermes). Gateway
+  Hermes lance (`hermes gateway run --accept-hooks`, PID 1868) : connexion Telegram en
+  polling, bot menu 52 cmds, reponse streamed via bridge (log : `model=deepseek-v4-flash-free
+  provider=custom base_url=http://127.0.0.1:5050/v1 platform=telegram`).
+- **Allowlist Hermes** : pairing flow (`hermes pairing approve telegram XRGJ8L2T` ->
+  user ID 8534369207 = Patrick). `TELEGRAM_ALLOWED_USERS` sauvegarde dans `.env`.
+  Deny-by-default confirme.
+- **ACP OpenClaw arme** : plugin `@openclaw/acpx` installe + active. Config `acp` :
+  `{enabled, allowedAgents:["opencode"], dispatch:{enabled}}` dans `openclaw.json`.
+- **Fix owner Telegram** : `/acp spawn` refusait ("not authorized") car `commands.ownerAllowFrom`
+  etait vide (owner identity requise pour les runtime controls). Ajout
+  `commands.ownerAllowFrom: ["telegram:8534369207"]` dans `openclaw.json`.
+- **Fix plugin non charge** : acpx etait "enabled" mais absent des 9 plugins du log runtime
+  (le backend ACP manquait -> `ACP_BACKEND_MISSING`). Fix : `plugins.entries.acpx.enabled:
+  true` dans `openclaw.json` -> relance gateway -> **10 plugins** dont acpx, backend
+  `embedded acpx runtime backend ready`.
+- **Spawn OK depuis Telegram** : `/acp spawn opencode --bind here` sur `@WholeAndDeepBot` ->
+  session `agent:opencode:acp:232f8867-36cc-4c29-9ef9-1c3e2c2b1078` (persistent, acpx),
+  conversation Telegram liee. Process : `npx -y opencode-ai acp` (PID 30232), cwd workspace.
+- **Validation MCP dans la session ACP** : l'instance opencode ACP charge bien
+  `~/.config/opencode/opencode.json` -> 2 serveurs MCP connectes :
+  - `hermes` : hermes_conversations_list/get, messages_read/send, attachments_fetch,
+    events_poll/wait, channels_list, permissions_list_open/respond.
+  - `openclaw` : openclaw_conversations_list/get, messages_read/send, attachments_fetch,
+    events_poll/wait, permissions_list_open/respond.
+- **Note redemarrage gateway OpenClaw (Windows)** : `openclaw gateway restart` echoue
+  (signal POSIX SIGUSR1). Recette fiable : injecter `TELEGRAM_BOT_TOKEN` en env, lancer
+  `Start-Process openclaw.cmd gateway run` (pas le node .mjs direct : les chemins a espaces
+  sont mal quotes). Config a valider par `openclaw config validate` apres edits JSON.
+
 ### v7 — CANAL TELEGRAM + OUTILS VIDEOS (11/08/2026)
 - **Canal Telegram active** : bot `@WholeAndDeepBot` (token via @BotFather, stocke en
   variable d'environnement utilisateur `TELEGRAM_BOT_TOKEN`, jamais en clair dans la
