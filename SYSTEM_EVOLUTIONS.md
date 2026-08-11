@@ -99,6 +99,36 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
   `Start-Process openclaw.cmd gateway run` (pas le node .mjs direct : les chemins a espaces
   sont mal quotes). Config a valider par `openclaw config validate` apres edits JSON.
 
+### v10 — DIAGNOSTIC REPLY CONTEXTE + ERREUR UPSTREAM (11/08/2026)
+- **Probleme signale (Patrick)** : en repondant via "Reply" Telegram sur un ancien
+  message du bot, le bot ne comprend pas qu'il s'agit d'une reponse a un ancien
+  message -> contenu du message cite invisible.
+- **Diagnostic (cause racine)** : pour les sessions ACP liees (opencode via acpx),
+  OpenClaw n'envoie au harness que le **texte brut** du nouveau message.
+  `resolveAcpPromptText` (`dist\dispatch-acp-D_evZ_go.js`) prend le premier de
+  `["BodyForAgent","BodyForCommands","CommandBody","RawBody","Body"]` — JAMAIS
+  `ReplyToBody` ni le contenu du quote.
+- Le contexte reply/quote/forward est capture en champs structures (`ReplyToBody`,
+  `ReplyToId`, `ReplyToSender`, `ReplyToIsQuote` via `inbound-context-cqPd3Tht.js`)
+  et normalise en bloc "Conversation context" (`chat_window`) pour le pipeline agent
+  **natif** — mais ce bloc n'est PAS envoye aux harnesses ACP externes.
+- Confirme par la doc `acp-agents.md` : "external ACP harnesses get a plain prompt...
+  The raw `<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>` envelope should never be sent to
+  external harnesses." -> limite de conception, pas un bug configurable.
+- Hooks explores sans effet pour ACP : `before_prompt_build`/`agent_turn_prepare`
+  (pipeline natif uniquement, pas dans le chemin dispatch ACP),
+  `contextVisibility` (filtrage canal natif), `replyToMode` (threading de sortie),
+  `inbound_claim` (reponses synthetiques, pas de reecriture du body).
+- **Workaround immediat** : recoller le texte du message concerne dans la reponse.
+  La session ACP liee garde l'historique complet (43k tokens) mais le bot ne sait
+  pas auquel de ses messages le reply se refere.
+- **Erreur "Upstream request failed: [server_error] Upstream response was not valid
+  JSON"** : transitoire, provider deepseek a renvoye une reponse non-JSON.
+  Verifie : bridge :5050 `/health` OK, opencode :4096 cree session + repond,
+  session ACP liee (`ses_010dbc...`) HTTP 200 en ~13s. Aucune action requise.
+- Process verifies : gateway OpenClaw :18789 (PID 21520), bridge :5050 (PID 42080),
+  opencode serve :4096 (PID 41288).
+
 ### v7 — CANAL TELEGRAM + OUTILS VIDEOS (11/08/2026)
 - **Canal Telegram active** : bot `@WholeAndDeepBot` (token via @BotFather, stocke en
   variable d'environnement utilisateur `TELEGRAM_BOT_TOKEN`, jamais en clair dans la
