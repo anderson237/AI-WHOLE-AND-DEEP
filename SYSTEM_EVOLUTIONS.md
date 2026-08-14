@@ -39,6 +39,60 @@ opencode ─┘                 └─ deepseek-v4-flash-free (cloud, provider o
 
 ## VERSIONNEL / EVOLUTIONS
 
+### v12 — FIX CONNECTIVITE LOCALE : MCP OPENCLAW URL+TOKEN, TIMEOUTS MCP, RECETTE RELANCE (14/08/2026)
+- **Probleme (Patrick)** : au demarrage d'une session opencode, MCP `hermes`
+  (`Operation timed out after 30000ms`) et `openclaw` (`-32001 Request timed out`),
+  LSP desactive, et la chaine modele ne repondait pas. Cause : la chaine locale
+  `OpenClaw/Hermes -> bridge:5050 -> opencode:4096 -> cloud` etait COUPEE (process
+  non relances apres arret/reboot) ET la commande MCP openclaw manquait d'arguments.
+- **Diagnostic connectivite** (14/08, avant fix) :
+  - OpenClaw gateway :18789 UP (`/health` -> `{ok,status:live}`, config valide),
+    Hermes CLI v0.17.0 OK, repo `Downloads\AI-WHOLE-AND-DEEP` propre (main/origin).
+  - **Down** : bridge :5050 (rien n'ecoute) + opencode serve :4096 (rien n'ecoute)
+    -> le modele `brain/deepseek-v4-flash-free` (baseURL :5050/v1 dans
+    `~\.config\opencode\opencode.json`) etait inaccessible. Gateway Hermes absente.
+  - Test MCP stdio (handshake `initialize`) :
+    - `hermes mcp serve --accept-hooks` : froid **~17,6s** (instable : parfois >60s
+      sous charge) -> depassait le timeout UI de 30s quand la chaine etait down.
+    - `openclaw mcp serve` **SANS args : hang total** (aucune reponse initialize).
+      `mcp serve` connecte la gateway via WebSocket ; sans `--url`/`--token` il ne
+      savait pas joindre la gateway locale en mode loopback.
+    - `openclaw mcp serve --url ws://127.0.0.1:18789 --token openclaw-local-trio` :
+      initialize **~15-24s** puis `tools/list` OK.
+- **Fix 1 — command MCP openclaw** : dans `~\.config\opencode\opencode.json`,
+  `mcp.openclaw.command` passe de `["...openclaw.cmd","mcp","serve"]` a
+  `["...openclaw.cmd","mcp","serve","--url","ws://127.0.0.1:18789","--token","openclaw-local-trio"]`.
+  (Le warning `--token` visible via process listing est accepte : token deja en
+  clair dans le stockage de config ; alternative `--token-file` si besoin.)
+- **Fix 2 — timeouts MCP** : `timeout: 120000` (120s) ajoute AUX DEUX serveurs
+  (`openclaw` l'avait deja, `hermes` n'en avait pas) -> les cold starts ~17-24s
+  passent sous la limite UI. JSON valide (verifie par `ConvertFrom-Json`).
+- **Recette relance chaine (Windows, a reutiliser)**, process detaches pour ne pas
+  mourir avec le shell appelant :
+  ```powershell
+  Start-Process "C:\Users\<USER>\AppData\Roaming\npm\node_modules\opencode-ai\bin\opencode.exe" -ArgumentList "serve --port 4096" -WindowStyle Hidden
+  Start-Process "C:\Python314\python.exe" -ArgumentList '"C:\Users\<USER>\hermes-brain\bridge.py"' -WorkingDirectory "C:\Users\<USER>\hermes-brain" -WindowStyle Hidden
+  Start-Process "C:\Users\<USER>\AppData\Local\hermes\hermes-agent\venv\Scripts\hermes.exe" -ArgumentList "gateway run --accept-hooks" -WindowStyle Hidden
+  ```
+  Verifications : `/global/health` (4096, `healthy=True`), `/v1/models` (5050,
+  `data[0].id = deepseek-v4-flash-free`), `openclaw /health` (18789, `live`).
+  Alternative : `start_brain.bat` (verifie/demarre 4096 + 5050) mais ses `start /b`
+  restent attaches a la console -> preferer les `Start-Process` detaches.
+- **Validation bout en bout (14/08)** : `POST /v1/chat/completions` sur le bridge
+  -> HTTP 200 `{"content":"OK"}` ; `hermes chat -q "..." -> BRAS-HERMES-OK`
+  (session-id `20260814_153511_f38c48`) prouve que Hermes raisonne via la chaine
+  locale. Gateway OpenClaw live. MCP handshakes hermes/openclaw : OK.
+- **Mode local TELEGRAM-FREE (decision Patrick)** : opencode = TETE (orchestrateur),
+  OpenClaw + Hermes = 2 BRAS pilotes via CLI en outils natifs bash (hermes skills
+  search/install/list, openclaw config/gateway/commands). Telegram coupe du scope
+  : AUCUN lien vers la resolution des timeouts MCP. Les MCP restent la couche de
+  messagerie optionnelle pour le restart opencode.
+- **A verifier apres restart opencode** : les serveurs MCP se reconnectent avec la
+  config corrigee (cold ~17-24s < 120s). Points ouverts : `tools/list` openclaw a
+  renvoye ~0 tools lors des tests (parametrage canaux/plugins a confirmer) ; warning
+  gateway OpenClaw « Service config looks out of date or non-standard » (token
+  TELEGRAM inline, recommandation `openclaw doctor --repair` a evaluer).
+
 ### v11 — SYMBIOSE ULTIME : OPENCODE = ORCHESTRATEUR + SKILLS CLAWHUB (11/08/2026)
 - **Objectif (Patrick)** : utiliser TOUS les outils du Claw Hub + toutes les capacites
   creatives d'outils de Hermes Agent, pilotes depuis opencode, sans latence > 5s.
